@@ -1,8 +1,8 @@
 import os
+import json
 import streamlit as st
 from phi.tools.tavily import TavilyTools
 from assistant import get_research_assistant  # type: ignore
-
 from dotenv import load_dotenv
 
 # Load environment variables from .env for local development
@@ -48,6 +48,10 @@ def main() -> None:
         st.session_state["llm_model"] = llm_model
         st.rerun()
 
+    # Initialize previously searched topics
+    if "previous_topics" not in st.session_state:
+        st.session_state["previous_topics"] = []
+
     # Get topic for report
     input_topic = st.text_input(
         ":female-scientist: Enter a topic",
@@ -57,19 +61,13 @@ def main() -> None:
     generate_report = st.button("Generate Report")
     if generate_report:
         st.session_state["topic"] = input_topic
+        if input_topic not in st.session_state["previous_topics"]:
+            st.session_state["previous_topics"].append(input_topic)
 
-    st.sidebar.markdown("## Trending Topics")
-    if st.sidebar.button("Superfast Llama 3 inference on Groq Cloud"):
-        st.session_state["topic"] = "Llama 3 on Groq Cloud"
-
-    if st.sidebar.button("AI in Healthcare"):
-        st.session_state["topic"] = "AI in Healthcare"
-
-    if st.sidebar.button("Language Agent Tree Search"):
-        st.session_state["topic"] = "Language Agent Tree Search"
-
-    if st.sidebar.button("Chromatic Homotopy Theory"):
-        st.session_state["topic"] = "Chromatic Homotopy Theory"
+    st.sidebar.markdown("## Previously Searched Topics")
+    for topic in st.session_state["previous_topics"]:
+        if st.sidebar.button(topic):
+            st.session_state["topic"] = topic
 
     if "topic" in st.session_state:
         report_topic = st.session_state["topic"]
@@ -94,6 +92,20 @@ def main() -> None:
             for delta in research_assistant.run(tavily_search_results):
                 final_report += delta  # type: ignore
                 final_report_container.markdown(final_report)
+
+            # Save the generated report as a JSON file
+            report_data = {"topic": report_topic, "report": final_report}
+            with open("report.json", "w") as f:
+                json.dump(report_data, f, indent=4)
+
+            # Provide a download button
+            with open("report.json", "r") as f:
+                st.download_button(
+                    label="Download Report",
+                    data=f,
+                    file_name="report.json",
+                    mime="application/json"
+                )
 
     st.sidebar.markdown("---")
     if st.sidebar.button("Restart"):
